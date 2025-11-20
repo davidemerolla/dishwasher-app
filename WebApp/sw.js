@@ -1,18 +1,42 @@
-self.addEventListener('install', (e) => {
-    e.waitUntil(
-        caches.open('dishwasher-store').then((cache) => cache.addAll([
-            './index.html',
-            './style.css',
-            './app.js'
-        ]))
+const CACHE_NAME = 'dishwasher-store-v3';
+
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) =>
+            cache.addAll([
+                './',
+                './index.html',
+                './style.css',
+                './app.js',
+                './manifest.json',
+                './icon-192.png',
+                './icon-512.png'
+            ])
+        )
     );
 });
 
-self.addEventListener('fetch', (e) => {
-    e.respondWith(
-        caches.match(e.request).then((response) => response || fetch(e.request))
+// pulizia cache vecchie
+self.addEventListener('activate', (event) => {
+    event.waitUntil(
+        caches.keys().then((keys) =>
+            Promise.all(
+                keys
+                    .filter((key) => key !== CACHE_NAME)
+                    .map((key) => caches.delete(key))
+            )
+        )
     );
 });
+
+self.addEventListener('fetch', (event) => {
+    event.respondWith(
+        caches.match(event.request).then(
+            (response) => response || fetch(event.request)
+        )
+    );
+});
+
 // Gestisce le push in arrivo dal backend
 self.addEventListener('push', (event) => {
     let data = {
@@ -24,7 +48,7 @@ self.addEventListener('push', (event) => {
         try {
             data = event.data.json();
         } catch (e) {
-            // se non è JSON, ignoriamo e usiamo i default
+            // se non è JSON, usiamo i default
         }
     }
 
@@ -37,7 +61,7 @@ self.addEventListener('push', (event) => {
     );
 });
 
-// (Opzionale) click sulla notifica → apri l'app
+// click sulla notifica → apri l'app
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
     event.waitUntil(

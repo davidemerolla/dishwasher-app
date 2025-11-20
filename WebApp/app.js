@@ -123,7 +123,7 @@ function render() {
     }
 }
 
-const BACKEND_URL = 'http://localhost:3000'; // poi lo cambi con l'URL pubblico del backend
+const BACKEND_URL = 'https://dishwasher-backend.onrender.com/';
 
 async function subscribeToPush() {
     if (!('serviceWorker' in navigator)) {

@@ -5,34 +5,29 @@ const housemates = [
 ];
 
 // --- Rotazione turni: ciclo di 3 settimane ---
-// Settimana A (questa):
-//   lun-mar Cuto, mer-gio Davide, ven-sab Sara, dom Cuto
-// Settimana B (prossima):
-//   lun-mar Davide, mer-gio Sara, ven-sab Cuto, dom Davide
-// Settimana C (dopo):
-//   lun-mar Sara, mer-gio Cuto, ven-sab Davide, dom Sara
-// poi si ricomincia da A.
-//
-// Ancoriamo il ciclo a lunedì 17/11/2025 (settimana A).
-const CYCLE_START = new Date(2025, 10, 17); // mesi 0-based: 10 = novembre
+// A: lun-mar Cuto, mer-gio Davide, ven-sab Sara, dom Cuto
+// B: lun-mar Davide, mer-gio Sara, ven-sab Cuto, dom Davide
+// C: lun-mar Sara, mer-gio Cuto, ven-sab Davide, dom Sara
+// ancora di riferimento: lun 17/11/2025 (settimana A)
+const CYCLE_START = new Date(2025, 10, 17); // 10 = novembre (0-based)
 
-// Restituisce il lunedì della settimana di una certa data
+// lunedì della settimana della data
 function getWeekStartMonday(d) {
     const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     const day = date.getDay(); // 0=Dom, 1=Lun, ... 6=Sab
-    const diff = (day + 6) % 7; // giorni passati da lunedì
+    const diff = (day + 6) % 7;
     date.setDate(date.getDate() - diff);
     date.setHours(0, 0, 0, 0);
     return date;
 }
 
-// 0 = settimana A, 1 = settimana B, 2 = settimana C
+// 0 = A, 1 = B, 2 = C
 function getCycleWeekIndex(date) {
     const weekStart = getWeekStartMonday(date);
     const startWeek = getWeekStartMonday(CYCLE_START);
     const diffMs = weekStart - startWeek;
     const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
-    return ((diffWeeks % 3) + 3) % 3; // normalizza a 0,1,2 anche se diffWeeks < 0
+    return ((diffWeeks % 3) + 3) % 3;
 }
 
 function getPersonOnDuty(date) {
@@ -41,18 +36,18 @@ function getPersonOnDuty(date) {
     let personId;
 
     if (cycleWeek === 0) {
-        // Settimana A: lun-mar Cuto, mer-gio Davide, ven-sab Sara, dom Cuto
-        if (day === 0) { // dom
+        // Settimana A
+        if (day === 0) {
             personId = 'cuto';
-        } else if (day === 1 || day === 2) { // lun, mar
+        } else if (day === 1 || day === 2) {
             personId = 'cuto';
-        } else if (day === 3 || day === 4) { // mer, gio
+        } else if (day === 3 || day === 4) {
             personId = 'me';
-        } else if (day === 5 || day === 6) { // ven, sab
+        } else if (day === 5 || day === 6) {
             personId = 'sara';
         }
     } else if (cycleWeek === 1) {
-        // Settimana B: lun-mar Davide, mer-gio Sara, ven-sab Cuto, dom Davide
+        // Settimana B
         if (day === 0) {
             personId = 'me';
         } else if (day === 1 || day === 2) {
@@ -63,7 +58,7 @@ function getPersonOnDuty(date) {
             personId = 'cuto';
         }
     } else {
-        // Settimana C: lun-mar Sara, mer-gio Cuto, ven-sab Davide, dom Sara
+        // Settimana C
         if (day === 0) {
             personId = 'sara';
         } else if (day === 1 || day === 2) {
@@ -75,14 +70,14 @@ function getPersonOnDuty(date) {
         }
     }
 
-    return housemates.find(h => h.id === personId);
+    return housemates.find((h) => h.id === personId);
 }
 
 function render() {
     const today = new Date();
     const person = getPersonOnDuty(today);
 
-    // Render Today
+    // Oggi
     const todayEl = document.getElementById('today-person');
     todayEl.className = `person-name ${person ? person.color : ''}`;
     todayEl.innerHTML = person
@@ -93,11 +88,10 @@ function render() {
     document.getElementById('today-date').textContent =
         today.toLocaleDateString('it-IT', options);
 
-    // Render Week
+    // Settimana
     const weekList = document.getElementById('week-list');
     weekList.innerHTML = '';
 
-    // Calcola il lunedì della settimana corrente (per la visualizzazione)
     const currentDay = today.getDay();
     const monday = new Date(today);
     const diff = today.getDate() - currentDay + (currentDay === 0 ? -6 : 1);
@@ -123,7 +117,9 @@ function render() {
     }
 }
 
-const BACKEND_URL = 'https://dishwasher-backend.onrender.com/';
+const BACKEND_URL = 'https://dishwasher-backend.onrender.com';
+const VAPID_PUBLIC_KEY =
+    'BPSA8f8GwVH51CE459nbw6l2Ntd_hxfMgHpoQ9-QFprku__W0gp7hocIuH1THWpdmdD7kTNV0PqggDgIN3sfHZg';
 
 async function subscribeToPush() {
     if (!('serviceWorker' in navigator)) {
@@ -147,10 +143,6 @@ async function subscribeToPush() {
 
     const reg = await navigator.serviceWorker.ready;
 
-    // prendo la public key dal backend
-    const resp = await fetch(`${BACKEND_URL}/vapid-public-key`);
-    const vapidPublicKey = await resp.text();
-
     function urlBase64ToUint8Array(base64String) {
         const padding = '='.repeat((4 - base64String.length % 4) % 4);
         const base64 = (base64String + padding)
@@ -166,10 +158,9 @@ async function subscribeToPush() {
 
     const subscription = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
     });
 
-    // Qui potresti far scegliere chi è il "proprietario" del telefono (me/sara/cuto)
     const housemateId = 'me';
 
     await fetch(`${BACKEND_URL}/subscribe`, {
@@ -181,9 +172,8 @@ async function subscribeToPush() {
     alert('Notifiche attivate! Riceverai un promemoria quando è il tuo turno.');
 }
 
-// Bottone "Attiva Notifiche"
 document.getElementById('notify-btn').addEventListener('click', () => {
-    subscribeToPush().catch(err => {
+    subscribeToPush().catch((err) => {
         console.error(err);
         alert('Errore durante l\'attivazione delle notifiche.');
     });

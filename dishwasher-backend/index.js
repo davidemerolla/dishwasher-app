@@ -44,40 +44,84 @@ app.post('/subscribe', (req, res) => {
     res.status(201).json({ ok: true });
 });
 
-// --- Logica turni (basata sulla tua app JS) ---
-
-function getWeekNumber(d) {
-    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-}
-
+// --- Logica turni: ciclo di 3 settimane ---
+// Settimana A (questa):
+//   lun-mar Cuto, mer-gio Me, ven-sab Sara, dom Cuto
+// Settimana B (prossima):
+//   lun-mar Me, mer-gio Sara, ven-sab Cuto, dom Me
+// Settimana C (dopo):
+//   lun-mar Sara, mer-gio Cuto, ven-sab Me, dom Sara
+// poi si ricomincia da A.
+//
+// Ancoriamo il ciclo a lunedì 17/11/2025 (settimana A).
 const housemates = [
-    { id: 'me', name: 'Me' },
+    { id: 'me', name: 'Davide' },
     { id: 'sara', name: 'Sara' },
     { id: 'cuto', name: 'Cuto' }
 ];
 
+const CYCLE_START = new Date(2025, 10, 17); // 17 novembre 2025 (mesi 0-based)
+
+// Restituisce il lunedì della settimana di una certa data
+function getWeekStartMonday(d) {
+    const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const day = date.getDay(); // 0=Dom, 1=Lun, ... 6=Sab
+    const diff = (day + 6) % 7; // giorni passati da lunedì
+    date.setDate(date.getDate() - diff);
+    date.setHours(0, 0, 0, 0);
+    return date;
+}
+
+// 0 = settimana A, 1 = settimana B, 2 = settimana C
+function getCycleWeekIndex(date) {
+    const weekStart = getWeekStartMonday(date);
+    const startWeek = getWeekStartMonday(CYCLE_START);
+    const diffMs = weekStart - startWeek;
+    const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+    return ((diffWeeks % 3) + 3) % 3; // normalizza a 0,1,2 anche se diffWeeks < 0
+}
+
 function getPersonOnDuty(date) {
-    const weekNumber = getWeekNumber(date);
-    const day = date.getDay(); // 0=Sun, 1=Mon, ...
+    const cycleWeek = getCycleWeekIndex(date);
+    const day = date.getDay(); // 0=Dom, 1=Lun, ... 6=Sab
+    let personId;
 
-    const rotationOffset = weekNumber % housemates.length;
-
-    if (day === 0) {
-        // Domenica: in base alla rotazione
-        return housemates[rotationOffset];
+    if (cycleWeek === 0) {
+        // Settimana A: lun-mar Cuto, mer-gio Me, ven-sab Sara, dom Cuto
+        if (day === 0) { // dom
+            personId = 'cuto';
+        } else if (day === 1 || day === 2) { // lun, mar
+            personId = 'cuto';
+        } else if (day === 3 || day === 4) { // mer, gio
+            personId = 'me';
+        } else if (day === 5 || day === 6) { // ven, sab
+            personId = 'sara';
+        }
+    } else if (cycleWeek === 1) {
+        // Settimana B: lun-mar Me, mer-gio Sara, ven-sab Cuto, dom Me
+        if (day === 0) {
+            personId = 'me';
+        } else if (day === 1 || day === 2) {
+            personId = 'me';
+        } else if (day === 3 || day === 4) {
+            personId = 'sara';
+        } else if (day === 5 || day === 6) {
+            personId = 'cuto';
+        }
+    } else {
+        // Settimana C: lun-mar Sara, mer-gio Cuto, ven-sab Me, dom Sara
+        if (day === 0) {
+            personId = 'sara';
+        } else if (day === 1 || day === 2) {
+            personId = 'sara';
+        } else if (day === 3 || day === 4) {
+            personId = 'cuto';
+        } else if (day === 5 || day === 6) {
+            personId = 'me';
+        }
     }
 
-    let slotIndex = 0;
-    if (day === 1 || day === 2) slotIndex = 0;        // lun, mar
-    else if (day === 3 || day === 4) slotIndex = 1;   // mer, gio
-    else if (day === 5 || day === 6) slotIndex = 2;   // ven, sab
-
-    const personIndex =
-        (slotIndex - rotationOffset + housemates.length) % housemates.length;
-    return housemates[personIndex];
+    return housemates.find((h) => h.id === personId);
 }
 
 // Endpoint chiamato ogni giorno alle 9:00 (da cron / scheduler)
@@ -85,6 +129,11 @@ app.post('/send-daily', async (req, res) => {
     try {
         const now = new Date();
         const p = getPersonOnDuty(now);
+
+        if (!p) {
+            console.error('Nessuna persona trovata per la data', now);
+            return res.status(500).json({ ok: false, error: 'No personOnDuty' });
+        }
 
         const payload = JSON.stringify({
             title: 'Turni lavastoviglie',

@@ -1,39 +1,81 @@
 const housemates = [
-    { id: 'me', name: 'Me', color: 'color-blue' },
-    { id: 'sara', name: 'Sara', color: 'color-purple' },
-    { id: 'cuto', name: 'Cuto', color: 'color-orange' }
+    { id: 'me', name: 'Davide', color: 'color-blue', icon: '🧑🏻‍🦱' },
+    { id: 'sara', name: 'Sara', color: 'color-purple', icon: '🧑🏻‍🦰' },
+    { id: 'cuto', name: 'Cuto', color: 'color-orange', icon: '🧔🏻' }
 ];
 
-function getWeekNumber(d) {
-    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-    var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    var weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-    return weekNo;
+// --- Rotazione turni: ciclo di 3 settimane ---
+// Settimana A (questa):
+//   lun-mar Cuto, mer-gio Davide, ven-sab Sara, dom Cuto
+// Settimana B (prossima):
+//   lun-mar Davide, mer-gio Sara, ven-sab Cuto, dom Davide
+// Settimana C (dopo):
+//   lun-mar Sara, mer-gio Cuto, ven-sab Davide, dom Sara
+// poi si ricomincia da A.
+//
+// Ancoriamo il ciclo a lunedì 17/11/2025 (settimana A).
+const CYCLE_START = new Date(2025, 10, 17); // mesi 0-based: 10 = novembre
+
+// Restituisce il lunedì della settimana di una certa data
+function getWeekStartMonday(d) {
+    const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const day = date.getDay(); // 0=Dom, 1=Lun, ... 6=Sab
+    const diff = (day + 6) % 7; // giorni passati da lunedì
+    date.setDate(date.getDate() - diff);
+    date.setHours(0, 0, 0, 0);
+    return date;
+}
+
+// 0 = settimana A, 1 = settimana B, 2 = settimana C
+function getCycleWeekIndex(date) {
+    const weekStart = getWeekStartMonday(date);
+    const startWeek = getWeekStartMonday(CYCLE_START);
+    const diffMs = weekStart - startWeek;
+    const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+    return ((diffWeeks % 3) + 3) % 3; // normalizza a 0,1,2 anche se diffWeeks < 0
 }
 
 function getPersonOnDuty(date) {
-    const weekNumber = getWeekNumber(date);
-    const day = date.getDay(); // 0=Sun, 1=Mon, ...
+    const cycleWeek = getCycleWeekIndex(date);
+    const day = date.getDay(); // 0=Dom, 1=Lun, ... 6=Sab
+    let personId;
 
-    // Rotation Offset based on week number
-    const rotationOffset = weekNumber % 3;
-
-    if (day === 0) { // Sunday
-        // Sunday Rotation: Me -> Sara -> Cuto
-        const index = rotationOffset % 3;
-        return housemates[index];
+    if (cycleWeek === 0) {
+        // Settimana A: lun-mar Cuto, mer-gio Davide, ven-sab Sara, dom Cuto
+        if (day === 0) { // dom
+            personId = 'cuto';
+        } else if (day === 1 || day === 2) { // lun, mar
+            personId = 'cuto';
+        } else if (day === 3 || day === 4) { // mer, gio
+            personId = 'me';
+        } else if (day === 5 || day === 6) { // ven, sab
+            personId = 'sara';
+        }
+    } else if (cycleWeek === 1) {
+        // Settimana B: lun-mar Davide, mer-gio Sara, ven-sab Cuto, dom Davide
+        if (day === 0) {
+            personId = 'me';
+        } else if (day === 1 || day === 2) {
+            personId = 'me';
+        } else if (day === 3 || day === 4) {
+            personId = 'sara';
+        } else if (day === 5 || day === 6) {
+            personId = 'cuto';
+        }
     } else {
-        // Mon-Sat Rotation
-        let slotIndex = 0;
-        if (day === 1 || day === 2) slotIndex = 0; // Mon, Tue
-        else if (day === 3 || day === 4) slotIndex = 1; // Wed, Thu
-        else if (day === 5 || day === 6) slotIndex = 2; // Fri, Sat
-
-        // Logic: (SlotIndex - RotationOffset) % 3
-        let personIndex = (slotIndex - rotationOffset + 3) % 3;
-        return housemates[personIndex];
+        // Settimana C: lun-mar Sara, mer-gio Cuto, ven-sab Davide, dom Sara
+        if (day === 0) {
+            personId = 'sara';
+        } else if (day === 1 || day === 2) {
+            personId = 'sara';
+        } else if (day === 3 || day === 4) {
+            personId = 'cuto';
+        } else if (day === 5 || day === 6) {
+            personId = 'me';
+        }
     }
+
+    return housemates.find(h => h.id === personId);
 }
 
 function render() {
@@ -42,20 +84,24 @@ function render() {
 
     // Render Today
     const todayEl = document.getElementById('today-person');
-    todayEl.textContent = person.name;
-    todayEl.className = `person-name ${person.color}`;
+    todayEl.className = `person-name ${person ? person.color : ''}`;
+    todayEl.innerHTML = person
+        ? `<span class="today-icon">${person.icon}</span><span>${person.name}</span>`
+        : '-';
 
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    document.getElementById('today-date').textContent = today.toLocaleDateString('it-IT', options);
+    document.getElementById('today-date').textContent =
+        today.toLocaleDateString('it-IT', options);
 
     // Render Week
     const weekList = document.getElementById('week-list');
     weekList.innerHTML = '';
 
-    // Get start of week (Monday)
+    // Calcola il lunedì della settimana corrente (per la visualizzazione)
     const currentDay = today.getDay();
-    const diff = today.getDate() - currentDay + (currentDay == 0 ? -6 : 1);
-    const monday = new Date(today.setDate(diff));
+    const monday = new Date(today);
+    const diff = today.getDate() - currentDay + (currentDay === 0 ? -6 : 1);
+    monday.setDate(diff);
 
     for (let i = 0; i < 7; i++) {
         const d = new Date(monday);
@@ -66,8 +112,12 @@ function render() {
         const row = document.createElement('div');
         row.className = 'week-row';
         row.innerHTML = `
-            <span class="day-name">${d.toLocaleDateString('it-IT', { weekday: 'long' })}</span>
-            <span class="person-badge ${p.color}">${p.name}</span>
+            <span class="day-name">
+                ${d.toLocaleDateString('it-IT', { weekday: 'long' })}
+            </span>
+            <span class="person-badge ${p ? p.color : ''}">
+                ${p ? `<span class="badge-icon">${p.icon}</span>${p.name}` : '-'}
+            </span>
         `;
         weekList.appendChild(row);
     }
@@ -140,4 +190,3 @@ document.getElementById('notify-btn').addEventListener('click', () => {
 });
 
 render();
-

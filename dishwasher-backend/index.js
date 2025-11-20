@@ -13,7 +13,8 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // preflight per tutte le rotte
+app.options('/subscribe', cors(corsOptions));
+app.options('/send-daily', cors(corsOptions));
 
 // --- Body parser ---
 app.use(bodyParser.json());

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turni Lavastoviglie</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff">
+    <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+    <div class="container">
+        <div id="today-card" class="card">
+            <h2>Oggi</h2>
+            <div id="today-person" class="person-name">Caricamento...</div>
+            <div id="today-date" class="date">...</div>
+        </div>
+
+        <div class="week-container">
+            <h3>Questa Settimana</h3>
+            <div id="week-list"></div>
+        </div>
+        
+        <button id="notify-btn" class="btn">Attiva Notifiche</button>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+    </script>
+</body>
+</html>

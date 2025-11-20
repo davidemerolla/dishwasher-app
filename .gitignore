@@ -1,0 +1,10 @@
+# Backend Node
+dishwasher-backend/node_modules/
+
+# File temporanei / locali
+struttura_progetto.txt
+
+# Roba generica
+*.log
+.DS_Store
+Thumbs.db
